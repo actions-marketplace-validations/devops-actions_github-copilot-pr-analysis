@@ -1,3 +1,5 @@
+# [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/devops-actions/github-copilot-pr-analysis/badge)](https://api.securityscorecards.dev/projects/github.com/devops-actions/github-copilot-pr-analysis)
+
 # GitHub Copilot PR Analysis Action
 
 A GitHub Action that analyzes pull requests across your repositories to track GitHub Copilot usage, collaboration patterns, and development metrics.
