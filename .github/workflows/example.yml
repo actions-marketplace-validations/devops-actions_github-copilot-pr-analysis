@@ -1,5 +1,4 @@
 name: PR Analysis Example
-
 on:
   schedule:
     # Run every Monday at 9 AM UTC
@@ -19,6 +18,9 @@ on:
         required: false
         default: 'false'
         type: boolean
+
+permissions:
+  contents: read
 
 jobs:
   analyze-prs:
