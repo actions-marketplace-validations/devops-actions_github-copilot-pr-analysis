@@ -31,7 +31,7 @@
     "node-cache": "^5.1.2",
     "commander": "^14.0.2",
     "csv-writer": "^1.6.0",
-    "glob": "^10.5.0"
+    "glob": "^13.0.0"
   },
   "devDependencies": {
     "jest": "^30.2.0",
