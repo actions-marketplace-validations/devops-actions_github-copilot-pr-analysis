@@ -18,6 +18,9 @@ on:
         required: false
         default: 'false'
         type: boolean
+  push:
+    paths:
+      - .github/workflows/example.yml
 
 permissions:
   contents: read
