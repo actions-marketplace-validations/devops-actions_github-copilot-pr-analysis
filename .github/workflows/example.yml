@@ -18,6 +18,9 @@ on:
         required: false
         default: 'false'
         type: boolean
+  push:
+    paths:
+      - .github/workflows/example.yml
 
 permissions:
   contents: read
@@ -48,7 +51,7 @@ jobs:
             http-cache-
       
       - name: Run PR analysis with charts
-        uses: devops-actions/github-copilot-pr-analysis@v1
+        uses: devops-actions/github-copilot-pr-analysis@v0.0.3
         with:
           github_token: ${{ secrets.GH_PAT }}
           output_format: ${{ inputs.output_format || 'json' }}
@@ -60,7 +63,7 @@ jobs:
           #   partial-org:include:repo1,repo2
       
       - name: Upload analysis results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v6.0.0
         if: always()
         with:
           name: pr-analysis-results-${{ github.run_number }}
