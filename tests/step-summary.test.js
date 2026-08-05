@@ -1,4 +1,5 @@
-import { generateSummaryStats, generateRepositoryDataTable, generateActionsMinutesChart, generateActionsMinutesDataTable, formatNumberMetric } from '../src/mermaid-generator.js';
+import { jest } from '@jest/globals';
+import { generateSummaryStats, generateRepositoryDataTable, generateActionsMinutesChart, generateActionsMinutesDataTable, formatNumberMetric, writeToStepSummary, getActiveAgents, generateCodingAgentPieChart, generateCodingAgentWeeklyChart, generateCodingAgentDataTable } from '../src/mermaid-generator.js';
 
 describe('Step Summary Integration', () => {
     describe('formatNumberMetric', () => {
@@ -37,6 +38,12 @@ describe('Step Summary Integration', () => {
                 totalCopilotPRs: 30,
                 totalCopilotReviewPRs: 20,
                 totalCopilotAgentPRs: 10,
+                totalClaudePRs: 5,
+                totalClaudeReviewPRs: 2,
+                totalClaudeAgentPRs: 3,
+                totalCodexPRs: 3,
+                totalCodexReviewPRs: 1,
+                totalCodexAgentPRs: 2,
                 totalActionsRuns: 15,
                 totalActionsMinutes: 120,
                 weeklyAnalysis: {}
@@ -53,6 +60,16 @@ describe('Step Summary Integration', () => {
             expect(summary).toContain('**Copilot-Assisted PRs**: 30');
             expect(summary).toContain('**Copilot Review PRs**: 20');
             expect(summary).toContain('**Copilot Agent PRs**: 10');
+
+            // Verify Claude data is included
+            expect(summary).toContain('**Claude-Assisted PRs**: 5');
+            expect(summary).toContain('**Claude Review PRs**: 2');
+            expect(summary).toContain('**Claude Agent PRs**: 3');
+
+            // Verify Codex data is included
+            expect(summary).toContain('**Codex-Assisted PRs**: 3');
+            expect(summary).toContain('**Codex Review PRs**: 1');
+            expect(summary).toContain('**Codex Agent PRs**: 2');
         });
 
         test('should handle missing Actions data gracefully', () => {
@@ -287,6 +304,163 @@ describe('Step Summary Integration', () => {
             // Verify metric notation with dot as thousand separator
             expect(table).toContain('| 2023-W01 | 810 | 101.891 |');
             expect(table).toContain('| **Total** | **810** | **101.891** |');
+        });
+    });
+
+    describe('writeToStepSummary - output_to_step_summary control', () => {
+        const originalEnv = process.env;
+
+        afterEach(() => {
+            process.env = { ...originalEnv };
+        });
+
+        test('should skip writing when OUTPUT_TO_STEP_SUMMARY is false', async () => {
+            process.env.OUTPUT_TO_STEP_SUMMARY = 'false';
+            process.env.GITHUB_STEP_SUMMARY = undefined;
+            // Capture console output to verify nothing was written
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+            
+            await writeToStepSummary('test content');
+            
+            expect(consoleSpy).not.toHaveBeenCalledWith('test content');
+            consoleSpy.mockRestore();
+        });
+
+        test('should write to console when GITHUB_STEP_SUMMARY is not set and OUTPUT_TO_STEP_SUMMARY is not false', async () => {
+            delete process.env.OUTPUT_TO_STEP_SUMMARY;
+            delete process.env.GITHUB_STEP_SUMMARY;
+            
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+            
+            await writeToStepSummary('step summary content');
+            
+            expect(consoleSpy).toHaveBeenCalledWith('step summary content');
+            consoleSpy.mockRestore();
+        });
+    });
+
+    // ─── Coding-agent charts ───────────────────────────────────────────────
+
+    describe('getActiveAgents', () => {
+        test('returns only agents with PRs, sorted descending', () => {
+            const results = { totalCopilotPRs: 318, totalClaudePRs: 3, totalCodexPRs: 0 };
+            const agents = getActiveAgents(results);
+            expect(agents).toHaveLength(2);
+            expect(agents[0].name).toBe('GitHub Copilot');
+            expect(agents[0].total).toBe(318);
+            expect(agents[1].name).toBe('Claude');
+        });
+
+        test('returns empty array when no AI PRs exist', () => {
+            expect(getActiveAgents({ totalCopilotPRs: 0 })).toHaveLength(0);
+        });
+
+        test('defaults missing fields to 0', () => {
+            const agents = getActiveAgents({});
+            expect(agents).toHaveLength(0);
+        });
+    });
+
+    describe('generateCodingAgentPieChart', () => {
+        test('returns fallback when fewer than 2 agents active', () => {
+            const result = generateCodingAgentPieChart({ totalCopilotPRs: 10, totalClaudePRs: 0, totalCodexPRs: 0 });
+            expect(result).toContain('No multi-agent data');
+        });
+
+        test('generates pie chart with active agents only', () => {
+            const result = generateCodingAgentPieChart({ totalCopilotPRs: 318, totalClaudePRs: 3, totalCodexPRs: 0 });
+            expect(result).toContain('```mermaid');
+            expect(result).toContain('pie title');
+            expect(result).toContain('"GitHub Copilot" : 318');
+            expect(result).toContain('"Claude" : 3');
+            expect(result).not.toContain('Codex');
+        });
+
+        test('handles all three agents', () => {
+            const result = generateCodingAgentPieChart({ totalCopilotPRs: 50, totalClaudePRs: 3, totalCodexPRs: 2 });
+            expect(result).toContain('"GitHub Copilot" : 50');
+            expect(result).toContain('"Claude" : 3');
+            expect(result).toContain('"Codex" : 2');
+        });
+    });
+
+    describe('generateCodingAgentWeeklyChart', () => {
+        const results = { totalCopilotPRs: 20, totalClaudePRs: 3, totalCodexPRs: 0 };
+
+        const weeklyData = {
+            '2025-W01': { copilotAssistedPRs: 10, claudeAssistedPRs: 2, codexAssistedPRs: 0, totalPRs: 15 },
+            '2025-W02': { copilotAssistedPRs: 0,  claudeAssistedPRs: 0, codexAssistedPRs: 0, totalPRs: 5  },
+            '2025-W03': { copilotAssistedPRs: 10, claudeAssistedPRs: 1, codexAssistedPRs: 0, totalPRs: 12 },
+        };
+
+        test('returns fallback when fewer than 2 agents active', () => {
+            const r = generateCodingAgentWeeklyChart(weeklyData, { totalCopilotPRs: 5, totalClaudePRs: 0, totalCodexPRs: 0 });
+            expect(r).toContain('No multi-agent data');
+        });
+
+        test('excludes all-zero weeks', () => {
+            const result = generateCodingAgentWeeklyChart(weeklyData, results);
+            expect(result).not.toContain('"25/02"');
+        });
+
+        test('includes weeks with AI-assisted PRs', () => {
+            const result = generateCodingAgentWeeklyChart(weeklyData, results);
+            expect(result).toContain('"25/01"');
+            expect(result).toContain('"25/03"');
+        });
+
+        test('emits correct bar counts', () => {
+            const result = generateCodingAgentWeeklyChart(weeklyData, results);
+            expect(result).toContain('bar "GitHub Copilot" [10, 10]');
+            expect(result).toContain('bar "Claude" [2, 1]');
+        });
+
+        test('includes single-attribution note in legend', () => {
+            const result = generateCodingAgentWeeklyChart(weeklyData, results);
+            expect(result).toContain('attributed to one AI tool only');
+        });
+
+        test('handles missing claude/codex fields gracefully', () => {
+            const sparse = {
+                '2025-W01': { copilotAssistedPRs: 5, totalPRs: 10 },
+                '2025-W02': { copilotAssistedPRs: 3, totalPRs: 8  },
+            };
+            const r = { totalCopilotPRs: 8, totalClaudePRs: 2, totalCodexPRs: 0 };
+            // Should not throw even though claudeAssistedPRs is undefined on each week
+            expect(() => generateCodingAgentWeeklyChart(sparse, r)).not.toThrow();
+        });
+    });
+
+    describe('generateCodingAgentDataTable', () => {
+        const results = { totalCopilotPRs: 20, totalClaudePRs: 3, totalCodexPRs: 0 };
+
+        const weeklyData = {
+            '2025-W01': { copilotAssistedPRs: 10, claudeAssistedPRs: 2, codexAssistedPRs: 0, totalPRs: 15 },
+            '2025-W02': { copilotAssistedPRs: 0,  claudeAssistedPRs: 0, codexAssistedPRs: 0, totalPRs: 5  },
+        };
+
+        test('returns fallback when fewer than 2 agents active', () => {
+            const r = generateCodingAgentDataTable(weeklyData, { totalCopilotPRs: 5 });
+            expect(r).toContain('No multi-agent data');
+        });
+
+        test('skips all-zero weeks from table', () => {
+            const result = generateCodingAgentDataTable(weeklyData, results);
+            expect(result).not.toContain('2025-W02');
+        });
+
+        test('includes header row with active agent names', () => {
+            const result = generateCodingAgentDataTable(weeklyData, results);
+            expect(result).toContain('GitHub Copilot');
+            expect(result).toContain('Claude');
+            expect(result).not.toContain('Codex');
+        });
+
+        test('shows count and percentage for each agent', () => {
+            const result = generateCodingAgentDataTable(weeklyData, results);
+            // Week 01: 10 Copilot + 2 Claude = 12 AI-assisted, Copilot ~83%, Claude ~17%
+            expect(result).toContain('10 (83%)');
+            expect(result).toContain('2 (17%)');
         });
     });
 });
